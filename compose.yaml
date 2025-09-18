@@ -1,0 +1,103 @@
+services:
+  nginx:
+    image: openresty/openresty:alpine
+    container_name: nginx
+    volumes:
+      - ./infra/nginx/conf.d:/etc/nginx/conf.d
+      - ./infra/nginx/nginx.conf:/usr/openresty/nginx/conf/nginx.conf
+    ports:
+      - 80:80
+      - 443:443
+    networks:
+      private:
+        ipv4_address: 10.0.0.2
+
+  postgres:
+    image: postgres
+    container_name: postgres
+    environment:
+      POSTGRES_DB: postgres          # Database name
+      POSTGRES_USER: postgres     # Database user
+      POSTGRES_PASSWORD: postgres # Database password
+    ports:
+      - 5432:5432
+    volumes:
+      - ./storage/postgres:/var/lib/postgresql
+    networks:
+      private:
+        ipv4_address: 10.0.0.15
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin
+    restart: always
+    ports:
+      - 8888:80
+    environment:
+      PGADMIN_CONFIG_ALLOW_SPECIAL_EMAIL_DOMAINS: "['localhost', 'local', 'dev']"
+      PGADMIN_DEFAULT_EMAIL: admin@local.local
+      PGADMIN_DEFAULT_PASSWORD: pg
+    networks:
+      private:
+        ipv4_address: 10.0.0.200
+
+  redis:
+    container_name: redis
+    image: redis:3
+    ports:
+      - 6379:6379
+    networks:
+      private:
+        ipv4_address: 10.0.0.20
+
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: root
+      MINIO_ROOT_PASSWORD: password
+      MINIO_DEFAULT_BUCKETS: default
+    volumes:
+      - ./storage/minio:/data
+    command: server /data --console-address ":9001"
+    ports:
+      - 9002:9000   # MinIO API port
+      - 9001:9001   # MinIO Console (Web UI) port
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      private:
+        ipv4_address: 10.0.0.18
+
+  mailhog:
+    image: mailhog/mailhog
+    container_name: mailhog
+    #logging:
+    #    driver: 'none'  # disable saving logs
+    ports:
+      - 1025:1025 # smtp server
+      - 8025:8025 # web ui
+    environment:
+      MAIL_MAILER: smtp
+      MAIL_HOST: mailhog
+      MAIL_PORT: 1025
+      MAIL_USERNAME: null
+      MAIL_PASSWORD: null
+      MAIL_ENCRYPTION: null
+    networks:
+      private:
+        ipv4_address: 10.0.0.110
+
+networks:
+  public:
+    driver: bridge
+  private:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.0.0.0/24
+          gateway: 10.0.0.1
